@@ -379,6 +379,47 @@ let enhtml = ()=> {
 	onOutput(htmlEncode(document.getElementById('input-area').value));
 }
 
+let hex2sid = ()=> {
+	let hexs = document.getElementById('input-area').value;
+	hexs = hexs
+	  .split("")
+	  .filter(c => "0123456789abcdef".includes(c.toLowerCase()))
+	  .join("");
+	
+	function hexToBytes(hex) {
+	  if (hex.length % 2 !== 0) throw new Error("Invalid hex length");
+	  const out = new Uint8Array(hex.length / 2);
+	  for (let i = 0; i < out.length; i++) {
+	    out[i] = parseInt(hex.substr(i * 2, 2), 16);
+	  }
+	  return out;
+	}
+	
+	const b = hexToBytes(hexs);
+	
+	const rev = b[0];
+	const subc = b[1];
+	
+	// Identifier Authority (6 bytes, big-endian) -> BigInt
+	let ident = 0n;
+	for (let i = 2; i < 8; i++) {
+	  ident = (ident << 8n) | BigInt(b[i]);
+	}
+	
+	// SubAuthorities (4 bytes each, little-endian) -> unsigned 32-bit number
+	const subs = [];
+	for (let i = 0; i < subc; i++) {
+	  const off = 8 + 4 * i;
+	  const val =
+	    (b[off]) |
+	    (b[off + 1] << 8) |
+	    (b[off + 2] << 16) |
+	    (b[off + 3] << 24);
+	  subs.push(val >>> 0);
+	}
+	
+	onOutput(`S-${rev}-${ident.toString()}` + subs.map(s => `-${s}`).join(""));
+}
 let encryptButton = document.getElementById('encrypt');
 let decryptButton = document.getElementById('decrypt');
 
@@ -450,3 +491,4 @@ let onDecrypt = ()=> {
 }
 encryptButton.addEventListener('click', onEncrypt);
 decryptButton.addEventListener('click', onDecrypt);
+
