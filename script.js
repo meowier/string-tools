@@ -602,3 +602,245 @@ let onDecrypt = ()=> {
 encryptButton.addEventListener('click', onEncrypt);
 decryptButton.addEventListener('click', onDecrypt);
 
+
+/* ===================== CTF Toolkit (bổ sung) ===================== */
+
+// ROT47: xoay toàn bộ ASCII in được (33-126), bù cho ROT13. Tự nghịch đảo.
+let rot47 = ()=> {
+	let e = document.getElementById('input-area').value;
+	onOutput(e.replace(/[\x21-\x7e]/g, c => String.fromCharCode(33 + (c.charCodeAt(0) - 33 + 47) % 94)));
+}
+
+// Caesar/ROTn: dịch chữ cái với shift bất kỳ. Nhập n; in luôn cả 25 dịch chuyển để brute-force.
+let caesar = ()=> {
+	let e = document.getElementById('input-area').value;
+	let inp = prompt('Nhập shift (số), để trống = in tất cả 25 khả năng để brute-force:');
+	let shift = (c, i) => c.replace(/[a-zA-Z]/g, ch => {
+		let base = ch <= 'Z' ? 65 : 97;
+		return String.fromCharCode((ch.charCodeAt(0) - base + (i % 26 + 26) % 26) % 26 + base);
+	});
+	if (inp === null) return;
+	if (inp.trim() === '') {
+		let lines = [];
+		for (let i = 1; i <= 25; i++) lines.push('ROT' + String(i).padStart(2, '0') + ': ' + shift(e, i));
+		onOutput(lines.join('\n'));
+	} else {
+		onOutput(shift(e, parseInt(inp, 10) || 0));
+	}
+}
+
+// Atbash: gương bảng chữ cái (a<->z). Tự nghịch đảo.
+let atbash = ()=> {
+	let e = document.getElementById('input-area').value;
+	onOutput(e.replace(/[a-zA-Z]/g, c => {
+		let base = c <= 'Z' ? 65 : 97;
+		return String.fromCharCode(base + 25 - (c.charCodeAt(0) - base));
+	}));
+}
+
+// Vigenère mã hoá: nhập key, chỉ dịch chữ cái, giữ nguyên ký tự khác và hoa/thường.
+let vigenereEnc = ()=> {
+	let e = document.getElementById('input-area').value;
+	let key = (prompt('Nhập key Vigenère (chỉ chữ cái):') || '').replace(/[^a-zA-Z]/g, '').toLowerCase();
+	if (!key) { onOutput('Cần nhập key gồm chữ cái.'); return; }
+	let j = 0, out = '';
+	for (let ch of e) {
+		if (/[a-zA-Z]/.test(ch)) {
+			let base = ch <= 'Z' ? 65 : 97;
+			let k = key.charCodeAt(j % key.length) - 97;
+			out += String.fromCharCode((ch.charCodeAt(0) - base + k) % 26 + base);
+			j++;
+		} else out += ch;
+	}
+	onOutput(out);
+}
+
+// Vigenère giải mã.
+let vigenereDec = ()=> {
+	let e = document.getElementById('input-area').value;
+	let key = (prompt('Nhập key Vigenère (chỉ chữ cái):') || '').replace(/[^a-zA-Z]/g, '').toLowerCase();
+	if (!key) { onOutput('Cần nhập key gồm chữ cái.'); return; }
+	let j = 0, out = '';
+	for (let ch of e) {
+		if (/[a-zA-Z]/.test(ch)) {
+			let base = ch <= 'Z' ? 65 : 97;
+			let k = key.charCodeAt(j % key.length) - 97;
+			out += String.fromCharCode((ch.charCodeAt(0) - base - k + 26) % 26 + base);
+			j++;
+		} else out += ch;
+	}
+	onOutput(out);
+}
+
+// A1Z26 mã hoá: chữ -> số (a=1..z=26), cách nhau bởi '-', từ cách nhau bởi ' '.
+let a1z26Enc = ()=> {
+	let e = document.getElementById('input-area').value.toLowerCase();
+	onOutput(e.split(/\s+/).map(w =>
+		w.split('').map(c => (c >= 'a' && c <= 'z') ? (c.charCodeAt(0) - 96) : c).join('-')
+	).join(' '));
+}
+
+// A1Z26 giải mã: nhận số ngăn cách bởi ký tự không phải số.
+let a1z26Dec = ()=> {
+	let e = document.getElementById('input-area').value.trim();
+	onOutput(e.split(/\s+/).map(w =>
+		w.split(/[^0-9]+/).filter(x => x.length).map(n => {
+			let v = parseInt(n, 10);
+			return (v >= 1 && v <= 26) ? String.fromCharCode(96 + v) : '?';
+		}).join('')
+	).join(' '));
+}
+
+// Bacon cipher mã hoá (biến thể 26 chữ riêng biệt, 5 bit A/B).
+let baconEnc = ()=> {
+	let e = document.getElementById('input-area').value.toUpperCase();
+	onOutput(e.replace(/[A-Z]/g, c =>
+		(c.charCodeAt(0) - 65).toString(2).padStart(5, '0').replace(/0/g, 'A').replace(/1/g, 'B')
+	));
+}
+
+// Bacon cipher giải mã: gom A/B (hoặc 0/1) thành nhóm 5 bit.
+let baconDec = ()=> {
+	let bits = document.getElementById('input-area').value.toUpperCase().replace(/[^AB01]/g, '').replace(/0/g, 'A').replace(/1/g, 'B');
+	let out = '';
+	for (let i = 0; i + 5 <= bits.length; i += 5) {
+		let v = parseInt(bits.substr(i, 5).replace(/A/g, '0').replace(/B/g, '1'), 2);
+		out += (v >= 0 && v <= 25) ? String.fromCharCode(65 + v) : '?';
+	}
+	onOutput(out);
+}
+
+// NTLM hash = MD4(UTF-16LE(password)). Rất hay dùng khi crack Windows.
+let ntlm = ()=> {
+	let s = document.getElementById('input-area').value;
+	let bytes = [];
+	for (let i = 0; i < s.length; i++) {
+		let c = s.charCodeAt(i);
+		bytes.push(c & 0xff, (c >> 8) & 0xff);
+	}
+	onOutput(md4(bytes).toUpperCase());
+}
+
+// CRC32 checksum (chuẩn IEEE, in hex 8 ký tự).
+let crc32 = ()=> {
+	let bytes = new TextEncoder().encode(document.getElementById('input-area').value);
+	let table = crc32.table || (crc32.table = (() => {
+		let t = [];
+		for (let n = 0; n < 256; n++) {
+			let c = n;
+			for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+			t[n] = c >>> 0;
+		}
+		return t;
+	})());
+	let crc = 0xFFFFFFFF;
+	for (let i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ table[(crc ^ bytes[i]) & 0xFF];
+	onOutput(((crc ^ 0xFFFFFFFF) >>> 0).toString(16).padStart(8, '0'));
+}
+
+// Base58 (bảng Bitcoin) mã hoá từ chuỗi UTF-8.
+let enbase58 = ()=> {
+	let A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+	let bytes = Array.from(new TextEncoder().encode(document.getElementById('input-area').value));
+	if (!bytes.length) { onOutput(''); return; }
+	let zeros = 0; while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+	let digits = [0];
+	for (let i = zeros; i < bytes.length; i++) {
+		let carry = bytes[i];
+		for (let j = 0; j < digits.length; j++) { carry += digits[j] << 8; digits[j] = carry % 58; carry = (carry / 58) | 0; }
+		while (carry) { digits.push(carry % 58); carry = (carry / 58) | 0; }
+	}
+	let out = '1'.repeat(zeros) + digits.reverse().map(d => A[d]).join('');
+	onOutput(out);
+}
+
+// Base58 giải mã -> chuỗi UTF-8.
+let debase58 = ()=> {
+	let A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+	let s = document.getElementById('input-area').value.trim();
+	if (!s) { onOutput(''); return; }
+	let bytes = [0];
+	for (let ch of s) {
+		let val = A.indexOf(ch);
+		if (val < 0) { onOutput('Ký tự không hợp lệ trong Base58: ' + ch); return; }
+		let carry = val;
+		for (let j = 0; j < bytes.length; j++) { carry += bytes[j] * 58; bytes[j] = carry & 0xff; carry >>= 8; }
+		while (carry) { bytes.push(carry & 0xff); carry >>= 8; }
+	}
+	let zeros = 0; while (zeros < s.length && s[zeros] === '1') zeros++;
+	bytes.reverse();
+	let arr = new Uint8Array(zeros + (bytes.length - (bytes[0] === 0 ? 1 : 0)));
+	// loại byte 0 thừa ở đầu
+	while (bytes.length > 1 && bytes[0] === 0) bytes.shift();
+	let full = new Uint8Array(zeros + bytes.length);
+	full.set(bytes, zeros);
+	onOutput(new TextDecoder().decode(full));
+}
+
+// Shannon entropy: bit/ký tự + tổng bit, gợi ý mức ngẫu nhiên.
+let entropy = ()=> {
+	let e = document.getElementById('input-area').value;
+	if (!e.length) { onOutput('(empty)'); return; }
+	let freq = {};
+	for (let ch of e) freq[ch] = (freq[ch] || 0) + 1;
+	let H = 0, n = e.length;
+	for (let k in freq) { let p = freq[k] / n; H -= p * Math.log2(p); }
+	let hint = H < 3 ? 'thấp (văn bản/lặp lại)' : H < 4.5 ? 'trung bình (text tự nhiên)' : 'cao (nén/mã hoá/ngẫu nhiên)';
+	onOutput([
+		'Shannon entropy: ' + H.toFixed(4) + ' bit/ký tự',
+		'Tổng: ' + (H * n).toFixed(2) + ' bit (~' + Math.ceil(H * n / 8) + ' byte)',
+		'Số ký tự: ' + n + ', ký tự khác nhau: ' + Object.keys(freq).length,
+		'Đánh giá: ' + hint
+	].join('\n'));
+}
+
+// Frequency analysis + Index of Coincidence (đoán cipher dịch chuyển vs thay thế).
+let freqAnalysis = ()=> {
+	let e = document.getElementById('input-area').value;
+	if (!e.length) { onOutput('(empty)'); return; }
+	let freq = {};
+	for (let ch of e) freq[ch] = (freq[ch] || 0) + 1;
+	let sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+	let disp = c => c === ' ' ? '␠(space)' : c === '\n' ? '␤(\\n)' : c === '\t' ? '␉(\\t)' : c;
+	let lines = sorted.map(([c, n]) => disp(c).padEnd(10) + n + '  (' + (100 * n / e.length).toFixed(2) + '%)');
+	// Index of Coincidence trên chữ cái A-Z
+	let letters = e.toUpperCase().replace(/[^A-Z]/g, '');
+	let lf = {}; for (let c of letters) lf[c] = (lf[c] || 0) + 1;
+	let N = letters.length, ic = 0;
+	for (let k in lf) ic += lf[k] * (lf[k] - 1);
+	ic = N > 1 ? ic / (N * (N - 1)) : 0;
+	let icHint = ic > 0.06 ? 'gần tiếng Anh ~0.067 -> có thể là mã thay thế đơn/Caesar' :
+	             ic > 0.045 ? 'trung gian -> có thể Vigenère key ngắn' :
+	             'thấp ~0.038 -> Vigenère key dài / ngẫu nhiên';
+	onOutput('=== Tần suất ký tự ===\n' + lines.join('\n') +
+		'\n\n=== Index of Coincidence (A-Z) ===\nIC = ' + ic.toFixed(4) + '\n' + icHint);
+}
+
+// Hash identifier: đoán loại hash từ độ dài & charset (gợi ý, không chắc chắn 100%).
+let hashId = ()=> {
+	let h = document.getElementById('input-area').value.trim();
+	let guesses = [];
+	if (/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(h)) guesses.push('bcrypt');
+	if (/^\$1\$/.test(h)) guesses.push('md5crypt ($1$)');
+	if (/^\$5\$/.test(h)) guesses.push('sha256crypt ($5$)');
+	if (/^\$6\$/.test(h)) guesses.push('sha512crypt ($6$)');
+	if (/^\$apr1\$/.test(h)) guesses.push('Apache apr1-md5');
+	if (/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/.test(h) && h.split('.').length === 3) guesses.push('JWT (dùng nút JWT Decode)');
+	let hex = /^[a-fA-F0-9]+$/.test(h);
+	if (hex) {
+		let map = {
+			16: ['CRC-64? / MySQL323'],
+			8:  ['CRC-32 / Adler-32'],
+			32: ['MD5', 'MD4', 'NTLM', 'MD2', 'RIPEMD-128', 'LM'],
+			40: ['SHA-1', 'RIPEMD-160', 'HAVAL-160'],
+			56: ['SHA-224', 'SHA3-224'],
+			64: ['SHA-256', 'SHA3-256', 'Keccak-256', 'RIPEMD-256', 'BLAKE2s'],
+			96: ['SHA-384', 'SHA3-384'],
+			128:['SHA-512', 'SHA3-512', 'Whirlpool', 'BLAKE2b']
+		};
+		if (map[h.length]) guesses.push('hex ' + h.length + ' ký tự -> ' + map[h.length].join(', '));
+		else guesses.push('hex ' + h.length + ' ký tự (không khớp độ dài phổ biến)');
+	}
+	if (/^[A-Za-z0-9+/]+={0,2}$/.test(h) && h.length % 4 === 0) guesses.push('có thể là Base64 (thử nút Decode base64)');
+	onOutput(guesses.length ? '=== Hash có thể là ===\n- ' + guesses.join('\n- ') : 'Không nhận diện được. Kiểm tra lại độ dài/charset.');
+}
