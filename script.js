@@ -438,6 +438,98 @@ let hex2sid = ()=> {
 	
 	onOutput(`S-${rev}-${ident.toString()}` + subs.map(s => `-${s}`).join(""));
 }
+
+/* ===================== Tính năng bổ sung ===================== */
+
+// String <-> Octal (theo byte UTF-8, mỗi byte 3 chữ số bát phân)
+let strToOct = ()=> {
+	let e = document.getElementById('input-area').value;
+	onOutput(Array.from(new TextEncoder().encode(e)).map(b => b.toString(8).padStart(3, '0')).join(' '));
+}
+
+let octToStr = ()=> {
+	let bytes = document.getElementById('input-area').value.trim().split(/\s+/).filter(x => x.length).map(o => parseInt(o, 8));
+	onOutput(new TextDecoder().decode(new Uint8Array(bytes)));
+}
+
+// Universal base: nhận thập phân hoặc tiền tố 0x / 0b / 0o, in ra cả 4 hệ
+let allBases = ()=> {
+	let s = document.getElementById('input-area').value.trim();
+	let v;
+	try { v = BigInt(s); } catch (err) { onOutput('Số không hợp lệ. Dùng số thập phân hoặc tiền tố 0x / 0b / 0o.'); return; }
+	let neg = v < 0n, a = neg ? -v : v, sign = neg ? '-' : '';
+	onOutput(['BIN: ' + sign + a.toString(2), 'OCT: ' + sign + a.toString(8), 'DEC: ' + sign + a.toString(10), 'HEX: ' + sign + a.toString(16)].join('\n'));
+}
+
+// Chuyển giữa hai hệ cơ số bất kỳ (2-36)
+let anyBase = ()=> {
+	let s = document.getElementById('input-area').value.trim();
+	let from = parseInt(prompt('Hệ cơ số nguồn (2-36):'), 10);
+	let to = parseInt(prompt('Hệ cơ số đích (2-36):'), 10);
+	if (!(from >= 2 && from <= 36 && to >= 2 && to <= 36)) { onOutput('Cơ số phải trong khoảng 2-36.'); return; }
+	let n = parseInt(s, from);
+	if (Number.isNaN(n)) { onOutput('Input không hợp lệ ở cơ số ' + from + '.'); return; }
+	onOutput(n.toString(to));
+}
+
+// String <-> Unicode code point (U+XXXX), xử lý đúng emoji/surrogate pair
+let strToCodepoint = ()=> {
+	let e = document.getElementById('input-area').value;
+	onOutput(Array.from(e).map(ch => 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')).join(' '));
+}
+
+let codepointToStr = ()=> {
+	let e = document.getElementById('input-area').value.trim();
+	onOutput(e.split(/\s+/).filter(x => x.length).map(t => String.fromCodePoint(parseInt(t.replace(/^U\+/i, ''), 16))).join(''));
+}
+
+// XOR cipher với key lặp lại; mã hoá ra hex, giải mã từ hex
+let xorStr = ()=> {
+	let e = new TextEncoder().encode(document.getElementById('input-area').value);
+	let key = prompt('Nhập key XOR:');
+	if (!key) { onOutput('Cần nhập key.'); return; }
+	let k = new TextEncoder().encode(key);
+	onOutput(Array.from(e).map((b, i) => (b ^ k[i % k.length]).toString(16).padStart(2, '0')).join(''));
+}
+
+let unxorHex = ()=> {
+	let hex = document.getElementById('input-area').value.replace(/\s+/g, '');
+	let key = prompt('Nhập key XOR:');
+	if (!key) { onOutput('Cần nhập key.'); return; }
+	let k = new TextEncoder().encode(key);
+	let bytes = [];
+	for (let i = 0; i < hex.length; i += 2) bytes.push(parseInt(hex.substr(i, 2), 16));
+	onOutput(new TextDecoder().decode(new Uint8Array(bytes.map((b, i) => b ^ k[i % k.length]))));
+}
+
+// Hex dump kiểu xxd: offset + 16 byte hex + cột ASCII
+let hexDump = ()=> {
+	let bytes = new TextEncoder().encode(document.getElementById('input-area').value);
+	let lines = [];
+	for (let off = 0; off < bytes.length; off += 16) {
+		let chunk = bytes.slice(off, off + 16);
+		let hex = Array.from(chunk).map(b => b.toString(16).padStart(2, '0'));
+		let hexStr = (hex.slice(0, 8).join(' ') + '  ' + hex.slice(8).join(' ')).padEnd(48, ' ');
+		let ascii = Array.from(chunk).map(b => (b >= 0x20 && b < 0x7f) ? String.fromCharCode(b) : '.').join('');
+		lines.push(off.toString(16).padStart(8, '0') + '  ' + hexStr + ' |' + ascii + '|');
+	}
+	onOutput(lines.join('\n') || '(empty)');
+}
+
+// Giải mã JWT: tách header.payload.signature, decode base64url + pretty-print JSON
+let jwtDecode = ()=> {
+	let parts = document.getElementById('input-area').value.trim().split('.');
+	if (parts.length < 2) { onOutput('Không phải JWT hợp lệ (cần dạng header.payload.signature).'); return; }
+	let dec = (seg) => { try { return JSON.stringify(JSON.parse(window.Base64.decode(seg)), null, 2); } catch (err) { return '(không giải mã được) ' + seg; } };
+	onOutput('=== HEADER ===\n' + dec(parts[0]) + '\n\n=== PAYLOAD ===\n' + dec(parts[1]) + '\n\n=== SIGNATURE ===\n' + (parts[2] || '(none)'));
+}
+
+// Bỏ dấu tiếng Việt
+let removeDiacritics = ()=> {
+	let e = document.getElementById('input-area').value;
+	onOutput(e.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D'));
+}
+
 let encryptButton = document.getElementById('encrypt');
 let decryptButton = document.getElementById('decrypt');
 
