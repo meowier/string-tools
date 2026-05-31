@@ -100,7 +100,7 @@ let enbase64 = ()=> {
 }
 
 let debase64 = ()=> {
-    onOutput(window.Base64.encode(document.getElementById('input-area').value));
+    onOutput(window.Base64.decode(document.getElementById('input-area').value));
 }
 
 let remRep = ()=> {
@@ -141,7 +141,7 @@ let escapseJs = () => {
 				out = e	
 			}
 		} catch (err) {
-			out = e.replace(/\\n/g, "\\n").replace(/\\'/g, "\\'").replace(/\\"/g, '\\"').replace(/\\&/g, "\\&").replace(/\\r/g, "\\r").replace(/\\t/g, "\\t").replace(/\\b/g, "\\b").replace(/\\f/g, "\\f");
+			out = e.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t").replace(/\f/g, "\\f").replace(/[\b]/g, "\\b");
 		}
 	}
     onOutput(out);
@@ -149,25 +149,43 @@ let escapseJs = () => {
 
 let unescapseJs = () => {
     let e = document.getElementById('input-area').value;
-	let out = e.replace(/\\n/g, `\n`).replace(/\\'/g, `'`).replace(/\\"/g, `\"`).replace(/\\&/g, `\&`).replace(/\\r/g, `\r`).replace(/\\t/g, `\t`).replace(/\\b/g, `\b`).replace(/\\f/g, `\f`)
+	let map = { 'n': '\n', 'r': '\r', 't': '\t', 'b': '\b', 'f': '\f', '"': '"', "'": "'", '&': '&', '\\': '\\', '/': '/' };
+	let out = '';
+	for (let i = 0; i < e.length; i++) {
+		if (e[i] === '\\' && i + 1 < e.length) {
+			let nx = e[i + 1];
+			if (nx === 'u' && /^[0-9a-fA-F]{4}$/.test(e.substr(i + 2, 4))) {
+				out += String.fromCharCode(parseInt(e.substr(i + 2, 4), 16));
+				i += 5;
+			} else if (map[nx] !== undefined) {
+				out += map[nx];
+				i += 1;
+			} else {
+				out += nx;
+				i += 1;
+			}
+		} else {
+			out += e[i];
+		}
+	}
     onOutput(out);
 }
 
 let strToHex = ()=> {
 	let e = document.getElementById('input-area').value;
-	let out = e.split('').map((value, index) => {
-		return e.charCodeAt(index).toString(16);
-	}).join('');
+	let out = Array.from(new TextEncoder().encode(e))
+		.map(b => b.toString(16).padStart(2, '0'))
+		.join('');
 	onOutput(out);
 }
 
 let hexToStr = ()=> {
-	let e  = document.getElementById('input-area').value;
-	let out = '';
+	let e  = document.getElementById('input-area').value.replace(/\s+/g, '');
+	let bytes = [];
 	for (let n = 0; n < e.length; n += 2) {
-		out += String.fromCharCode(parseInt(e.substr(n, 2), 16));
+		bytes.push(parseInt(e.substr(n, 2), 16));
 	}
-	onOutput(out);
+	onOutput(new TextDecoder().decode(new Uint8Array(bytes)));
 }
 
 let strToBin = ()=> {
@@ -368,7 +386,7 @@ let md4hash = ()=> {
 }
 
 let md2hash = ()=> {
-	onOutput(md4(document.getElementById('input-area').value));
+	onOutput(md2(document.getElementById('input-area').value));
 }
 
 let dehtml = ()=> {
